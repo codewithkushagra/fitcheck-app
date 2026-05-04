@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Gym {
+  id               String    @id @default(cuid())
+  name             String
+  city             String
+  address          String?
+  phone            String?
+  ownerName        String    @map("owner_name")
+  subscriptionPlan String    @default("basic") @map("subscription_plan")
+  gymCode          String    @unique @map("gym_code")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  users            User[]
+
+  @@map("gyms")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  gymId           String?          @map("gym_id")
+  trainerId       String?          @map("trainer_id")
+  role            String           // gym_admin | trainer | end_user
+  name            String
+  email           String           @unique
+  passwordHash    String           @map("password_hash")
+  profilePhotoUrl String?          @map("profile_photo_url")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  gym             Gym?             @relation(fields: [gymId], references: [id])
+  trainerProfile  TrainerProfile?
+  clientProfile   ClientProfile?
+  foodLogs        FoodLog[]
+  bodyLogs        BodyLog[]
+  stepLogs        StepLog[]
+  subscription    Subscription?
+  weeklyAnalyses  WeeklyAnalysis[]
+  achievements    Achievement[]
+  sentMessages    ChatMessage[]    @relation("SentMessages")
+  receivedMessages ChatMessage[]   @relation("ReceivedMessages")
+  attendanceMarked AttendanceRecord[] @relation("TrainerAttendance")
+  attendance      AttendanceRecord[] @relation("ClientAttendance")
+  checkIns        CallLog[]        @relation("TrainerCallLogs")
+  clientCallLogs  CallLog[]        @relation("ClientCallLogs")
+  assignedPlans   ClientPlanAssignment[]
+  createdPlans    WorkoutPlan[]    @relation("CreatedPlans")
+
+  @@map("users")
+}
+
+model TrainerProfile {
+  userId         String  @id @map("user_id")
+  specialisation String?
+  bio            String?
+  user           User    @relation(fields: [userId], references: [id])
+
+  @@map("trainer_profiles")
+}
+
+model ClientProfile {
+  userId            String   @id @map("user_id")
+  age               Int?
+  gender            String?
+  heightCm          Float?   @map("height_cm")
+  weightKg          Float?   @map("weight_kg")
+  goal              String?  // fat_loss | muscle_gain | maintenance | custom
+  medicalConditions String[] @map("medical_conditions")
+  createdAt         DateTime @default(now()) @map("created_at")
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@map("client_profiles")
+}
+
+model FoodLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  date        String
+  foodName    String   @map("food_item_name")
+  servingSize Float    @map("serving_size")
+  calories    Float
+  proteinG    Float    @map("protein_g")
+  carbsG      Float    @map("carbs_g")
+  fatG        Float    @map("fat_g")
+  isJunk      Boolean  @default(false) @map("is_junk")
+  loggedAt    DateTime @default(now()) @map("logged_at")
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("food_logs")
+}
+
+model BodyLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  date      String
+  weightKg  Float    @map("weight_kg")
+  waistCm   Float?   @map("waist_cm")
+  chestCm   Float?   @map("chest_cm")
+  armsCm    Float?   @map("arms_cm")
+  photoUrl  String?  @map("photo_url")
+  loggedAt  DateTime @default(now()) @map("logged_at")
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("body_logs")
+}
+
+model StepLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  date      String
+  stepCount Int      @map("step_count")
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("step_logs")
+}
+
+model WorkoutPlan {
+  id          String                 @id @default(cuid())
+  gymId       String?                @map("gym_id")
+  createdBy   String                 @map("created_by")
+  name        String
+  description String?
+  days        Json                   @default("[]")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  creator     User                   @relation("CreatedPlans", fields: [createdBy], references: [id])
+  assignments ClientPlanAssignment[]
+
+  @@map("workout_plans")
+}
+
+model ClientPlanAssignment {
+  id           String      @id @default(cuid())
+  clientUserId String      @map("client_user_id")
+  planId       String      @map("plan_id")
+  assignedBy   String      @map("assigned_by")
+  assignedAt   DateTime    @default(now()) @map("assigned_at")
+  client       User        @relation(fields: [clientUserId], references: [id])
+  plan         WorkoutPlan @relation(fields: [planId], references: [id])
+
+  @@map("client_plan_assignments")
+}
+
+model AttendanceRecord {
+  id           String   @id @default(cuid())
+  clientUserId String   @map("client_user_id")
+  trainerId    String   @map("trainer_id")
+  gymId        String?  @map("gym_id")
+  date         String
+  status       String   // present | absent
+  markedAt     DateTime @default(now()) @map("marked_at")
+  editedAt     DateTime? @map("edited_at")
+  client       User     @relation("ClientAttendance", fields: [clientUserId], references: [id])
+  trainer      User     @relation("TrainerAttendance", fields: [trainerId], references: [id])
+
+  @@unique([clientUserId, date])
+  @@map("attendance_records")
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String   @unique @map("user_id")
+  planType             String   @map("plan_type") // core | premium
+  status               String   // active | lapsed | cancelled
+  startDate            DateTime @map("start_date")
+  endDate              DateTime @map("end_date")
+  stripeSubscriptionId String?  @map("stripe_subscription_id")
+  user                 User     @relation(fields: [userId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model ChatMessage {
+  id              String   @id @default(cuid())
+  senderUserId    String   @map("sender_user_id")
+  recipientUserId String   @map("recipient_user_id")
+  content         String
+  mediaUrl        String?  @map("media_url")
+  sentAt          DateTime @default(now()) @map("sent_at")
+  readAt          DateTime? @map("read_at")
+  sender          User     @relation("SentMessages", fields: [senderUserId], references: [id])
+  recipient       User     @relation("ReceivedMessages", fields: [recipientUserId], references: [id])
+
+  @@map("chat_messages")
+}
+
+model CallLog {
+  id              String   @id @default(cuid())
+  trainerUserId   String   @map("trainer_user_id")
+  clientUserId    String   @map("client_user_id")
+  callType        String   @map("call_type") // in_app | manual_note
+  topic           String?
+  outcome         String?
+  durationMinutes Int?     @map("duration_minutes")
+  loggedAt        DateTime @default(now()) @map("logged_at")
+  trainer         User     @relation("TrainerCallLogs", fields: [trainerUserId], references: [id])
+  client          User     @relation("ClientCallLogs", fields: [clientUserId], references: [id])
+
+  @@map("call_logs")
+}
+
+model WeeklyAnalysis {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  weekStartDate String   @map("week_start_date")
+  insights      Json
+  generatedAt   DateTime @default(now()) @map("generated_at")
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("weekly_analyses")
+}
+
+model Achievement {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  achievementKey String   @map("achievement_key")
+  unlockedAt     DateTime @default(now()) @map("unlocked_at")
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, achievementKey])
+  @@map("achievements")
+}
