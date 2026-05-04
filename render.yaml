@@ -20,7 +20,7 @@ services:
           name: fitcheck-db
           property: connectionString
       - key: CLIENT_URL
-        sync: false   # fill in after Netlify deploy
+        value: https://fitcheck-by-anmol.netlify.app
 
 databases:
   - name: fitcheck-db
