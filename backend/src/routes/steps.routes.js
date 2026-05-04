@@ -24,7 +24,7 @@ router.post('/logs', async (req, res) => {
   try {
     const { date, stepCount } = req.body
     const log = await prisma.stepLog.upsert({
-      where: { id: `${req.user.id}_${date}` },
+      where: { userId_date: { userId: req.user.id, date } },
       update: { stepCount: parseInt(stepCount) },
       create: { userId: req.user.id, date, stepCount: parseInt(stepCount) }
     })

@@ -34,6 +34,8 @@ model User {
   createdAt       DateTime         @default(now()) @map("created_at")
 
   gym             Gym?             @relation(fields: [gymId], references: [id])
+  trainer         User?            @relation("ClientTrainer", fields: [trainerId], references: [id])
+  clients         User[]           @relation("ClientTrainer")
   trainerProfile  TrainerProfile?
   clientProfile   ClientProfile?
   foodLogs        FoodLog[]
@@ -116,6 +118,7 @@ model StepLog {
   stepCount Int      @map("step_count")
   user      User     @relation(fields: [userId], references: [id])
 
+  @@unique([userId, date])
   @@map("step_logs")
 }
 

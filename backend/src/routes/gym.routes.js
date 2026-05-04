@@ -43,7 +43,7 @@ router.get('/clients', requireRole('gym_admin'), async (req, res) => {
       include: {
         clientProfile: true,
         subscription: true,
-        trainer: { select: { id: true, name: true } }
+        trainer: { select: { id: true, name: true } }  // self-referential via "ClientTrainer" relation
       }
     })
     res.json(clients)
@@ -59,7 +59,7 @@ router.get('/trainers', requireRole('gym_admin'), async (req, res) => {
       where: { gymId: req.user.gymId, role: 'trainer' },
       include: {
         trainerProfile: true,
-        _count: { select: { attendance: true } }
+        _count: { select: { clients: true } }
       }
     })
     res.json(trainers)
