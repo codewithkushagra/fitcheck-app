@@ -62,9 +62,18 @@ export default function UserSignup() {
           ? form.medicalConditions.split(',').map(s => s.trim()).filter(Boolean)
           : [],
       })
-      setAuth(res.data.user, res.data.token)
+      const { user, token } = res.data
+      setAuth(user, token)
       toast.success('Account created! Welcome to Fit Check.')
-      navigate('/dashboard')
+      // Check for pending trainer invites right after signup
+      try {
+        const { data: invites } = await api.get('/trainers/invites', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        navigate(invites?.length > 0 ? '/accept-invite' : '/dashboard', { replace: true })
+      } catch {
+        navigate('/dashboard')
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Registration failed. Please try again.')
     } finally {

@@ -10,6 +10,7 @@ import Login from './pages/auth/Login'
 import GymRegister from './pages/auth/GymRegister'
 import UserSignup from './pages/auth/UserSignup'
 import ScanAttendance from './pages/ScanAttendance'
+import AcceptInvite from './pages/auth/AcceptInvite'
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -108,6 +109,9 @@ export default function App() {
           <Route path="/analysis" element={<RequireAuth roles={['end_user']}><WeeklyAnalysis /></RequireAuth>} />
           <Route path="/medical" element={<RequireAuth roles={['end_user']}><MedicalPlan /></RequireAuth>} />
           <Route path="/consult" element={<RequireAuth roles={['end_user']}><ConsultTrainer /></RequireAuth>} />
+
+          {/* Trainer invite acceptance — only for logged-in end_users with pending invites */}
+          <Route path="/accept-invite" element={<RequireAuth roles={['end_user']}><AcceptInvite /></RequireAuth>} />
 
           {/* QR Attendance scan — public but handles unauthenticated state internally */}
           <Route path="/scan/:token" element={<ScanAttendance />} />

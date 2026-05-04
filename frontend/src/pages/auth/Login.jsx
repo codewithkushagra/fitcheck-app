@@ -29,10 +29,27 @@ export default function Login() {
       const { token, user } = res.data
       setAuth(user, token)
       toast.success(`Welcome back, ${user.name.split(' ')[0]}!`)
-      if (redirectTo) navigate(redirectTo, { replace: true })
-      else if (user.role === 'gym_admin') navigate('/admin')
-      else if (user.role === 'trainer') navigate('/trainer')
-      else navigate('/dashboard')
+
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true })
+        return
+      }
+
+      if (user.role === 'gym_admin') {
+        navigate('/admin')
+      } else if (user.role === 'trainer') {
+        navigate('/trainer')
+      } else {
+        // For clients: check if they have a pending trainer invite
+        try {
+          const { data: invites } = await api.get('/trainers/invites', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          navigate(invites?.length > 0 ? '/accept-invite' : '/dashboard', { replace: true })
+        } catch {
+          navigate('/dashboard')
+        }
+      }
     } catch (err) {
       const msg = err.response?.data?.error || 'Login failed'
       toast.error(msg === 'Invalid credentials' ? 'Wrong email or password' : msg)
