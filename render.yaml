@@ -21,6 +21,8 @@ services:
           property: connectionString
       - key: CLIENT_URL
         value: https://fitcheck-by-anmol.netlify.app
+      - key: BACKEND_URL
+        value: https://fitcheck-backend-0c7q.onrender.com
 
 databases:
   - name: fitcheck-db
