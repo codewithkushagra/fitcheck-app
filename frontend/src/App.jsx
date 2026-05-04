@@ -1,7 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { useState, useEffect } from 'react'
 import useAuthStore from './store/authStore'
 import InstallPrompt from './components/ui/InstallPrompt'
+import SplashScreen from './components/ui/SplashScreen'
+import api from './api/axios'
 
 // Auth pages
 import Login from './pages/auth/Login'
@@ -54,57 +57,75 @@ function RootRedirect() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true)
+  const { isAuthenticated, token, logout, setAuth, user } = useAuthStore()
+
+  // Validate persisted token on every app start
+  useEffect(() => {
+    if (!isAuthenticated || !token) return
+    api.get('/auth/me').then(res => {
+      // Refresh user data from server in case profile changed
+      if (res.data?.user) setAuth(res.data.user, token)
+    }).catch(() => {
+      // Token expired or invalid — force logout
+      logout()
+    })
+  }, []) // eslint-disable-line
+
   return (
-    <BrowserRouter>
-      <InstallPrompt />
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            borderRadius: '12px',
-            fontFamily: 'Plus Jakarta Sans, Inter, sans-serif',
-            fontSize: '14px',
-            fontWeight: 500,
-          },
-        }}
-      />
-      <Routes>
-        {/* Public */}
-        <Route path="/" element={<RootRedirect />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<GymRegister />} />
-        <Route path="/signup" element={<UserSignup />} />
+    <>
+      {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      <BrowserRouter>
+        <InstallPrompt />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              borderRadius: '12px',
+              fontFamily: 'Plus Jakarta Sans, Inter, sans-serif',
+              fontSize: '14px',
+              fontWeight: 500,
+            },
+          }}
+        />
+        <Routes>
+          {/* Public */}
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<GymRegister />} />
+          <Route path="/signup" element={<UserSignup />} />
 
-        {/* Admin */}
-        <Route path="/admin" element={<RequireAuth roles={['gym_admin']}><AdminDashboard /></RequireAuth>} />
-        <Route path="/admin/trainers" element={<RequireAuth roles={['gym_admin']}><Trainers /></RequireAuth>} />
-        <Route path="/admin/clients" element={<RequireAuth roles={['gym_admin']}><ClientMasterList /></RequireAuth>} />
-        <Route path="/admin/attendance" element={<RequireAuth roles={['gym_admin']}><AttendanceReports /></RequireAuth>} />
-        <Route path="/admin/followup" element={<RequireAuth roles={['gym_admin']}><FollowUpCenter /></RequireAuth>} />
-        <Route path="/admin/billing" element={<RequireAuth roles={['gym_admin']}><Billing /></RequireAuth>} />
+          {/* Admin */}
+          <Route path="/admin" element={<RequireAuth roles={['gym_admin']}><AdminDashboard /></RequireAuth>} />
+          <Route path="/admin/trainers" element={<RequireAuth roles={['gym_admin']}><Trainers /></RequireAuth>} />
+          <Route path="/admin/clients" element={<RequireAuth roles={['gym_admin']}><ClientMasterList /></RequireAuth>} />
+          <Route path="/admin/attendance" element={<RequireAuth roles={['gym_admin']}><AttendanceReports /></RequireAuth>} />
+          <Route path="/admin/followup" element={<RequireAuth roles={['gym_admin']}><FollowUpCenter /></RequireAuth>} />
+          <Route path="/admin/billing" element={<RequireAuth roles={['gym_admin']}><Billing /></RequireAuth>} />
 
-        {/* Trainer */}
-        <Route path="/trainer" element={<RequireAuth roles={['trainer']}><TrainerDashboard /></RequireAuth>} />
-        <Route path="/trainer/clients" element={<RequireAuth roles={['trainer']}><MyClients /></RequireAuth>} />
-        <Route path="/trainer/clients/:id" element={<RequireAuth roles={['trainer']}><ClientProfile /></RequireAuth>} />
-        <Route path="/trainer/attendance" element={<RequireAuth roles={['trainer']}><MarkAttendance /></RequireAuth>} />
-        <Route path="/trainer/plans" element={<RequireAuth roles={['trainer']}><WorkoutPlans /></RequireAuth>} />
+          {/* Trainer */}
+          <Route path="/trainer" element={<RequireAuth roles={['trainer']}><TrainerDashboard /></RequireAuth>} />
+          <Route path="/trainer/clients" element={<RequireAuth roles={['trainer']}><MyClients /></RequireAuth>} />
+          <Route path="/trainer/clients/:id" element={<RequireAuth roles={['trainer']}><ClientProfile /></RequireAuth>} />
+          <Route path="/trainer/attendance" element={<RequireAuth roles={['trainer']}><MarkAttendance /></RequireAuth>} />
+          <Route path="/trainer/plans" element={<RequireAuth roles={['trainer']}><WorkoutPlans /></RequireAuth>} />
 
-        {/* Client */}
-        <Route path="/dashboard" element={<RequireAuth roles={['end_user']}><ClientDashboard /></RequireAuth>} />
-        <Route path="/food" element={<RequireAuth roles={['end_user']}><FoodLogger /></RequireAuth>} />
-        <Route path="/body" element={<RequireAuth roles={['end_user']}><BodyTracker /></RequireAuth>} />
-        <Route path="/steps" element={<RequireAuth roles={['end_user']}><StepsAchievements /></RequireAuth>} />
-        <Route path="/workout" element={<RequireAuth roles={['end_user']}><WorkoutPlan /></RequireAuth>} />
-        <Route path="/explorer" element={<RequireAuth roles={['end_user']}><FoodExplorer /></RequireAuth>} />
-        <Route path="/analysis" element={<RequireAuth roles={['end_user']}><WeeklyAnalysis /></RequireAuth>} />
-        <Route path="/medical" element={<RequireAuth roles={['end_user']}><MedicalPlan /></RequireAuth>} />
-        <Route path="/consult" element={<RequireAuth roles={['end_user']}><ConsultTrainer /></RequireAuth>} />
+          {/* Client */}
+          <Route path="/dashboard" element={<RequireAuth roles={['end_user']}><ClientDashboard /></RequireAuth>} />
+          <Route path="/food" element={<RequireAuth roles={['end_user']}><FoodLogger /></RequireAuth>} />
+          <Route path="/body" element={<RequireAuth roles={['end_user']}><BodyTracker /></RequireAuth>} />
+          <Route path="/steps" element={<RequireAuth roles={['end_user']}><StepsAchievements /></RequireAuth>} />
+          <Route path="/workout" element={<RequireAuth roles={['end_user']}><WorkoutPlan /></RequireAuth>} />
+          <Route path="/explorer" element={<RequireAuth roles={['end_user']}><FoodExplorer /></RequireAuth>} />
+          <Route path="/analysis" element={<RequireAuth roles={['end_user']}><WeeklyAnalysis /></RequireAuth>} />
+          <Route path="/medical" element={<RequireAuth roles={['end_user']}><MedicalPlan /></RequireAuth>} />
+          <Route path="/consult" element={<RequireAuth roles={['end_user']}><ConsultTrainer /></RequireAuth>} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </>
   )
 }

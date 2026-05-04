@@ -1,165 +1,165 @@
-import { useState } from 'react'
-import { Plus, Trophy, Lock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Trophy, Flame } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import Button from '../../components/ui/Button'
-import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import ProgressBar from '../../components/ui/ProgressBar'
 import { StepsBarChart } from '../../components/charts/BodyChart'
-import { mockStepLogs, mockAchievements } from '../../api/mockData'
-import { formatDate } from '../../utils/format'
+import api from '../../api/axios'
+import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 
+const STEP_TARGET = 10000
+
+// Local achievements computed from real step data
+function computeAchievements(logs) {
+  const total = logs.reduce((a, l) => a + l.stepCount, 0)
+  const streak = (() => {
+    let s = 0
+    for (let i = logs.length - 1; i >= 0; i--) {
+      if (logs[i].stepCount >= STEP_TARGET) s++
+      else break
+    }
+    return s
+  })()
+  return [
+    { id: 'first', label: 'First Steps', desc: 'Log your first day', icon: '👣', unlocked: logs.length > 0 },
+    { id: '10k', label: '10K Club', desc: 'Hit 10,000 steps in a day', icon: '🏅', unlocked: logs.some(l => l.stepCount >= 10000) },
+    { id: 'streak3', label: '3-Day Streak', desc: '3 consecutive goal days', icon: '🔥', unlocked: streak >= 3 },
+    { id: 'streak7', label: 'Week Warrior', desc: '7 consecutive goal days', icon: '⚡', unlocked: streak >= 7 },
+    { id: '100k', label: '100K Steps', desc: '100,000 total steps', icon: '💎', unlocked: total >= 100000 },
+    { id: '500k', label: '500K Legend', desc: '500,000 total steps', icon: '🏆', unlocked: total >= 500000 },
+  ]
+}
+
 export default function StepsAchievements() {
-  const [logs, setLogs] = useState(mockStepLogs)
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showLog, setShowLog] = useState(false)
   const [steps, setSteps] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const today = logs[logs.length - 1]
-  const weekAvg = Math.round(logs.slice(-7).reduce((a, l) => a + l.steps, 0) / 7)
-  const target = 10000
+  useEffect(() => {
+    api.get('/steps/logs?limit=30').then(res => setLogs(res.data || [])).catch(() => setLogs([])).finally(() => setLoading(false))
+  }, [])
 
-  const addSteps = () => {
-    if (!steps) return
-    setLogs(prev => {
-      const updated = [...prev]
-      updated[updated.length - 1] = { ...updated[updated.length - 1], steps: parseInt(steps) }
-      return updated
-    })
-    toast.success('Steps updated!'); setShowLog(false); setSteps('')
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const todayLog = logs.find(l => l.date === todayStr)
+  const todaySteps = todayLog?.stepCount || 0
+  const weekLogs = logs.slice(-7)
+  const weekAvg = weekLogs.length ? Math.round(weekLogs.reduce((a, l) => a + l.stepCount, 0) / weekLogs.length) : 0
+  const achievements = computeAchievements(logs)
+  const unlocked = achievements.filter(a => a.unlocked)
+  const locked = achievements.filter(a => !a.unlocked)
+
+  const chartData = weekLogs.map(l => ({
+    date: format(new Date(l.date + 'T00:00:00'), 'EEE'),
+    steps: l.stepCount,
+  }))
+
+  const updateSteps = async () => {
+    if (!steps || isNaN(Number(steps))) { toast.error('Enter valid steps'); return }
+    setSaving(true)
+    try {
+      const res = await api.post('/steps/logs', { date: todayStr, stepCount: parseInt(steps) })
+      setLogs(prev => {
+        const filtered = prev.filter(l => l.date !== todayStr)
+        return [...filtered, res.data].sort((a, b) => a.date.localeCompare(b.date))
+      })
+      toast.success('Steps updated!')
+      setShowLog(false); setSteps('')
+    } catch { toast.error('Failed to save') } finally { setSaving(false) }
   }
-
-  const unlocked = mockAchievements.filter(a => a.unlocked)
-  const locked = mockAchievements.filter(a => !a.unlocked)
 
   return (
     <Layout title="Steps">
       <div className="space-y-4 animate-fade-in">
         {/* Hero */}
-        <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
+        <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
           <div className="flex items-center justify-between mb-3">
             <p className="text-teal-200 text-sm">Today's steps</p>
-            <button onClick={() => setShowLog(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-semibold">
+            <button
+              onClick={() => setShowLog(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-semibold transition-colors"
+            >
               <Plus className="w-3.5 h-3.5" /> Update
             </button>
           </div>
-          <p className="text-5xl font-bold">{today.steps.toLocaleString()}</p>
-          <p className="text-teal-200 text-sm mt-1">/ {target.toLocaleString()} goal</p>
-          <div className="mt-4 bg-white/20 rounded-full overflow-hidden h-2.5">
-            <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(100, (today.steps / target) * 100)}%` }} />
-          </div>
-          <p className="text-teal-200 text-xs mt-2">
-            {Math.max(0, target - today.steps).toLocaleString()} steps to go · {Math.min(100, Math.round((today.steps / target) * 100))}%
-          </p>
-        </div>
-
-        {/* Quick stats */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
-            <p className="text-lg font-bold text-gray-900">{(weekAvg / 1000).toFixed(1)}k</p>
-            <p className="text-xs text-gray-500">7-day avg</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
-            <p className="text-lg font-bold text-gray-900">{logs.filter(l => l.steps >= 10000).length}</p>
-            <p className="text-xs text-gray-500">10k+ days</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
-            <p className="text-lg font-bold text-gray-900">{(logs.reduce((a, l) => a + l.steps, 0) / 1000).toFixed(0)}k</p>
-            <p className="text-xs text-gray-500">Total steps</p>
-          </div>
-        </div>
-
-        {/* Weekly chart */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-900">Last 7 Days</p>
-            <div className="flex items-center gap-1.5 text-xs text-gray-400">
-              <span className="w-6 h-0.5 bg-emerald-500 inline-block rounded" /> 10k goal
-            </div>
-          </div>
-          <StepsBarChart data={logs.slice(-7)} />
-        </div>
-
-        {/* Weekly streak circles */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <p className="text-sm font-semibold text-gray-900 mb-3">Weekly Streak</p>
-          <div className="flex gap-2">
-            {logs.slice(-7).map(l => (
-              <div key={l.date} className="flex-1 flex flex-col items-center gap-1.5">
-                <div className={`w-full aspect-square rounded-xl flex items-center justify-center text-xs font-bold ${
-                  l.steps >= 10000 ? 'bg-teal-500 text-white' :
-                  l.steps >= 5000 ? 'bg-teal-200 text-teal-700' : 'bg-gray-100 text-gray-400'
-                }`}>
-                  {l.steps >= 10000 ? '✓' : l.steps >= 5000 ? '~' : '–'}
-                </div>
-                <p className="text-xs text-gray-400">{formatDate(l.date, 'EEE')[0]}</p>
+          {loading ? (
+            <div className="w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+          ) : (
+            <>
+              <p className="text-5xl font-bold">{todaySteps.toLocaleString()}</p>
+              <p className="text-teal-200 text-sm mt-1">/ {STEP_TARGET.toLocaleString()} goal</p>
+              <div className="mt-4 bg-white/20 rounded-full overflow-hidden h-2.5">
+                <div className="h-full bg-white rounded-full transition-all" style={{ width: `${Math.min(100, (todaySteps / STEP_TARGET) * 100)}%` }} />
               </div>
-            ))}
+              <div className="flex items-center justify-between mt-3 text-xs text-teal-200">
+                <span>{Math.round((todaySteps / STEP_TARGET) * 100)}% of goal</span>
+                <span>7-day avg: {weekAvg.toLocaleString()}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Week chart */}
+        {chartData.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <p className="text-sm font-bold text-gray-900 mb-3">Last 7 Days</p>
+            <StepsBarChart data={chartData} target={STEP_TARGET} />
           </div>
+        )}
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'This Week', value: weekLogs.reduce((a, l) => a + l.stepCount, 0).toLocaleString(), sub: 'total steps' },
+            { label: 'Daily Avg', value: weekAvg.toLocaleString(), sub: 'last 7 days' },
+            { label: 'Goal Days', value: weekLogs.filter(l => l.stepCount >= STEP_TARGET).length, sub: 'this week' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
+              <p className="text-lg font-bold text-gray-900">{s.value}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{s.label}</p>
+            </div>
+          ))}
         </div>
 
         {/* Achievements */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-amber-500" />
-              <p className="text-sm font-semibold text-gray-900">Achievements</p>
-            </div>
-            <span className="text-xs text-gray-500">{unlocked.length}/{mockAchievements.length}</span>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <p className="text-sm font-bold text-gray-900">Achievements</p>
+            <span className="ml-auto text-xs text-gray-400">{unlocked.length}/{achievements.length} unlocked</span>
           </div>
-
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Unlocked</p>
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {unlocked.map(a => (
-              <div key={a.key} className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2.5">
-                <span className="text-2xl shrink-0">{a.icon}</span>
+          <div className="p-3 grid grid-cols-2 gap-2">
+            {achievements.map(a => (
+              <div key={a.id} className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all ${a.unlocked ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                <span className="text-xl shrink-0">{a.icon}</span>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-gray-900 truncate">{a.title}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">{formatDate(a.unlockedAt, 'MMM d')}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">In Progress</p>
-          <div className="space-y-3">
-            {locked.map(a => (
-              <div key={a.key} className="flex items-center gap-3">
-                <div className="relative w-10 h-10 shrink-0">
-                  <span className="text-2xl opacity-30">{a.icon}</span>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Lock className="w-3.5 h-3.5 text-gray-400" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-700">{a.title}</p>
-                  <div className="mt-1">
-                    <ProgressBar value={a.progress} max={a.target} height="xs" color="amber" showLabel />
-                  </div>
+                  <p className={`text-xs font-bold truncate ${a.unlocked ? 'text-amber-700' : 'text-gray-400'}`}>{a.label}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{a.desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
-
-        <Modal open={showLog} onClose={() => setShowLog(false)} title="Update Steps">
-          <div className="space-y-4">
-            <Input label="Step count" type="number" placeholder="e.g. 8500" value={steps} onChange={e => setSteps(e.target.value)} />
-            <div className="grid grid-cols-3 gap-2">
-              {[3000, 5000, 8000, 10000, 12000, 15000].map(n => (
-                <button key={n} onClick={() => setSteps(n)}
-                  className={`py-2 text-xs font-semibold rounded-xl border ${parseInt(steps) === n ? 'bg-teal-600 text-white border-teal-600' : 'border-gray-200 text-gray-600'}`}>
-                  {(n / 1000).toFixed(0)}k
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setShowLog(false)}>Cancel</Button>
-              <Button className="flex-1" onClick={addSteps} disabled={!steps}>Save</Button>
-            </div>
-          </div>
-        </Modal>
       </div>
+
+      <Modal isOpen={showLog} onClose={() => setShowLog(false)} title="Update Steps">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">Enter your total step count for today</p>
+          <input
+            type="number" min="0" max="100000"
+            className="w-full px-4 py-3 text-xl font-bold text-center border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50"
+            placeholder="0"
+            value={steps}
+            onChange={e => setSteps(e.target.value)}
+            autoFocus
+          />
+          {todaySteps > 0 && <p className="text-xs text-gray-400 text-center">Current: {todaySteps.toLocaleString()} steps</p>}
+          <Button onClick={updateSteps} className="w-full" loading={saving}>Save Steps</Button>
+        </div>
+      </Modal>
     </Layout>
   )
 }

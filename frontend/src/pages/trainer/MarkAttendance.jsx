@@ -1,38 +1,53 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CheckCircle, XCircle, Save } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import Avatar from '../../components/ui/Avatar'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import ProgressBar from '../../components/ui/ProgressBar'
-import { mockClients } from '../../api/mockData'
-import { goalLabel } from '../../utils/format'
+import api from '../../api/axios'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 
 export default function MarkAttendance() {
-  const clients = mockClients.filter(c => c.trainerId === 'usr_trainer_1')
-  const today = '2026-05-04'
-  const [attendance, setAttendance] = useState(() => {
-    const init = {}
-    clients.forEach(c => { init[c.id] = c.lastVisit === today ? 'present' : null })
-    return init
-  })
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const [date, setDate] = useState(todayStr)
+  const [clients, setClients] = useState([])
+  const [attendance, setAttendance] = useState({})
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      api.get('/trainers/my-clients'),
+      api.get(`/attendance?date=${date}`),
+    ]).then(([c, a]) => {
+      const cls = c.data || []
+      setClients(cls)
+      const init = {}
+      cls.forEach(cl => { init[cl.id] = null })
+      ;(a.data || []).forEach(r => { init[r.clientUserId] = r.status })
+      setAttendance(init)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [date])
 
   const mark = (id, status) => setAttendance(prev => ({ ...prev, [id]: prev[id] === status ? null : status }))
   const markAll = (status) => {
     const updated = {}; clients.forEach(c => { updated[c.id] = status }); setAttendance(updated)
   }
+
   const handleSave = async () => {
+    const records = clients.map(c => ({ clientUserId: c.id, status: attendance[c.id] || 'absent' }))
     setSaving(true)
-    await new Promise(r => setTimeout(r, 700))
-    toast.success('Attendance saved!'); setSaving(false)
+    try {
+      await api.post('/attendance/bulk', { records, date })
+      toast.success('Attendance saved!')
+    } catch { toast.error('Failed to save') } finally { setSaving(false) }
   }
 
-  const presentCount = Object.values(attendance).filter(v => v === 'present').length
-  const absentCount = Object.values(attendance).filter(v => v === 'absent').length
-  const unmarked = clients.length - presentCount - absentCount
+  const present = clients.filter(c => attendance[c.id] === 'present').length
+  const absent = clients.filter(c => attendance[c.id] === 'absent').length
+  const unmarked = clients.filter(c => !attendance[c.id]).length
 
   return (
     <Layout title="Attendance">
@@ -40,80 +55,70 @@ export default function MarkAttendance() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Mark Attendance</h1>
-            <p className="text-xs text-gray-500 mt-0.5">{format(new Date(today), 'EEEE, MMM d')}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{clients.length} clients</p>
           </div>
-          <Button onClick={handleSave} loading={saving} size="sm">
-            <Save className="w-4 h-4" /> Save
-          </Button>
+          <input
+            type="date" max={todayStr} value={date}
+            onChange={e => setDate(e.target.value)}
+            className="text-xs border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
         </div>
 
-        {/* Summary bar */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <ProgressBar value={presentCount} max={clients.length} height="md" color="teal" label={`${presentCount} of ${clients.length} present`} showLabel />
-          <div className="flex gap-3 mt-3">
-            <div className="flex-1 text-center p-2 bg-emerald-50 rounded-xl">
-              <p className="text-xl font-bold text-emerald-700">{presentCount}</p>
-              <p className="text-xs text-emerald-600">Present</p>
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'Present', value: present, color: 'text-emerald-600' },
+            { label: 'Absent', value: absent, color: 'text-red-500' },
+            { label: 'Unmarked', value: unmarked, color: 'text-gray-400' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
+              <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-[10px] text-gray-400">{s.label}</p>
             </div>
-            <div className="flex-1 text-center p-2 bg-red-50 rounded-xl">
-              <p className="text-xl font-bold text-red-700">{absentCount}</p>
-              <p className="text-xs text-red-600">Absent</p>
-            </div>
-            <div className="flex-1 text-center p-2 bg-gray-100 rounded-xl">
-              <p className="text-xl font-bold text-gray-600">{unmarked}</p>
-              <p className="text-xs text-gray-500">Pending</p>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* Bulk actions */}
+        {/* Mark all */}
         <div className="flex gap-2">
-          <button onClick={() => markAll('present')} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200 active:bg-emerald-100">
-            <CheckCircle className="w-4 h-4" /> All present
-          </button>
-          <button onClick={() => markAll('absent')} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-red-600 bg-red-50 rounded-xl border border-red-200 active:bg-red-100">
-            <XCircle className="w-4 h-4" /> All absent
-          </button>
+          <button onClick={() => markAll('present')} className="flex-1 py-2.5 text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-xl border border-emerald-200 active:bg-emerald-100">✓ All Present</button>
+          <button onClick={() => markAll('absent')} className="flex-1 py-2.5 text-sm font-semibold text-red-500 bg-red-50 rounded-xl border border-red-200 active:bg-red-100">✕ All Absent</button>
         </div>
 
         {/* Client list */}
-        <div className="space-y-2">
-          {clients.map(client => {
-            const status = attendance[client.id]
-            return (
-              <div key={client.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar name={client.name} size="md" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{client.name}</p>
-                    <p className="text-xs text-gray-400">{goalLabel[client.goal]} · {client.attendanceStreak}d streak</p>
-                  </div>
-                  {status && (
-                    <Badge variant={status === 'present' ? 'green' : 'red'} dot>{status}</Badge>
-                  )}
+        {loading ? (
+          <div className="py-12 text-center"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+        ) : clients.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 py-12 text-center">
+            <p className="text-sm text-gray-400">No clients assigned yet</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 overflow-hidden">
+            {clients.map(client => (
+              <div key={client.id} className="flex items-center gap-3 px-4 py-3">
+                <Avatar name={client.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{client.name}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
                   <button
                     onClick={() => mark(client.id, 'present')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                      status === 'present' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-emerald-50'
-                    }`}
-                  >
-                    <CheckCircle className="w-4 h-4" /> Present
-                  </button>
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${attendance[client.id] === 'present' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-300 hover:text-emerald-500'}`}
+                  ><CheckCircle className="w-5 h-5" /></button>
                   <button
                     onClick={() => mark(client.id, 'absent')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                      status === 'absent' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-red-50'
-                    }`}
-                  >
-                    <XCircle className="w-4 h-4" /> Absent
-                  </button>
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${attendance[client.id] === 'absent' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-300 hover:text-red-500'}`}
+                  ><XCircle className="w-5 h-5" /></button>
                 </div>
               </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {clients.length > 0 && (
+          <Button onClick={handleSave} loading={saving} className="w-full">
+            <Save className="w-4 h-4 mr-2" /> Save Attendance
+          </Button>
+        )}
       </div>
     </Layout>
   )

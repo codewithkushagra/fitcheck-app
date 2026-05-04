@@ -1,146 +1,75 @@
-import { useState } from 'react'
-import { CreditCard, Download, Zap, TrendingUp } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { CreditCard, Zap, TrendingUp, Users } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
-import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
-import Button from '../../components/ui/Button'
-import { mockClients } from '../../api/mockData'
-import { formatDate } from '../../utils/format'
-import toast from 'react-hot-toast'
-
-const invoices = [
-  { id: 'inv_1', date: '2026-05-01', amount: 87500, status: 'paid', description: 'May 2026 — Pro Plan + 18 Premium clients' },
-  { id: 'inv_2', date: '2026-04-01', amount: 82000, status: 'paid', description: 'April 2026 — Pro Plan + 16 Premium clients' },
-  { id: 'inv_3', date: '2026-03-01', amount: 79500, status: 'paid', description: 'March 2026 — Pro Plan + 15 Premium clients' },
-]
+import api from '../../api/axios'
+import useAuthStore from '../../store/authStore'
 
 export default function Billing() {
-  const [upgrading, setUpgrading] = useState(null)
+  const { user } = useAuthStore()
+  const [clients, setClients] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const premium = mockClients.filter(c => c.subscription === 'premium')
-  const core = mockClients.filter(c => c.subscription === 'core')
+  useEffect(() => {
+    api.get('/gyms/clients').then(res => setClients(res.data || [])).catch(() => setClients([])).finally(() => setLoading(false))
+  }, [])
 
-  const upgrade = async (id) => {
-    setUpgrading(id)
-    await new Promise(r => setTimeout(r, 800))
-    toast.success('Client upgraded to Premium!')
-    setUpgrading(null)
-  }
+  const premium = clients.filter(c => c.subscription?.planType === 'premium' && c.subscription?.status === 'active').length
+  const core = clients.filter(c => c.subscription?.planType === 'core' && c.subscription?.status === 'active').length
 
   return (
-    <Layout title="Billing & Subscriptions">
-      <div className="space-y-6 animate-fade-in">
+    <Layout title="Billing">
+      <div className="space-y-4 animate-fade-in">
         <div>
-          <h1 className="page-title">Billing & Subscriptions</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage gym plan and client subscriptions</p>
+          <h1 className="text-xl font-bold text-gray-900">Billing</h1>
+          <p className="text-xs text-gray-500 mt-0.5">{user?.gym?.name || 'Your Gym'}</p>
         </div>
 
-        {/* Gym plan */}
-        <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-2xl p-6 text-white">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-teal-200 text-sm font-medium">Current Plan</p>
-              <h2 className="text-2xl font-bold mt-1">Pro Plan</h2>
-              <p className="text-teal-200 mt-1">Unlimited trainers · Unlimited clients · All premium features</p>
-              <div className="flex items-center gap-4 mt-4">
-                <div><p className="text-xl font-bold">₹9,999</p><p className="text-teal-200 text-xs">per month</p></div>
-                <div><p className="text-xl font-bold">May 31</p><p className="text-teal-200 text-xs">next billing</p></div>
-                <div><p className="text-xl font-bold">89%</p><p className="text-teal-200 text-xs">renewal rate</p></div>
-              </div>
-            </div>
-            <div className="bg-white/20 rounded-xl p-3">
-              <CreditCard className="w-6 h-6 text-white" />
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+            <Zap className="w-5 h-5 text-amber-500 mx-auto mb-1" />
+            <p className="text-2xl font-bold text-gray-900">{loading ? '—' : premium}</p>
+            <p className="text-xs text-gray-400">Premium Members</p>
           </div>
-          <div className="mt-5 flex gap-3">
-            <button className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded-xl transition-colors">
-              Manage Plan
-            </button>
-            <button className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-xl transition-colors">
-              Update Payment
-            </button>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+            <Users className="w-5 h-5 text-teal-500 mx-auto mb-1" />
+            <p className="text-2xl font-bold text-gray-900">{loading ? '—' : core}</p>
+            <p className="text-xs text-gray-400">Core Members</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Client subscriptions */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-900">Client Subscriptions</h2>
-              <div className="flex gap-2">
-                <Badge variant="teal">⚡ {premium.length} Premium</Badge>
-                <Badge variant="gray">{core.length} Core</Badge>
-              </div>
-            </div>
-            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-              {mockClients.map(c => (
-                <div key={c.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={c.name} size="sm" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{c.name}</p>
-                      <p className="text-xs text-gray-500">{c.trainer}</p>
-                    </div>
+        {/* Subscription breakdown */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50">
+            <p className="text-sm font-bold text-gray-900">Member Subscriptions</p>
+          </div>
+          {loading ? (
+            <div className="py-12 text-center"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+          ) : clients.length === 0 ? (
+            <div className="py-12 text-center"><p className="text-sm text-gray-400">No members yet</p></div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {clients.map(c => (
+                <div key={c.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-8 h-8 bg-teal-50 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-teal-700">{c.name?.[0]?.toUpperCase()}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={c.subscription === 'premium' ? 'teal' : 'gray'}>
-                      {c.subscription === 'premium' ? '⚡ Premium' : 'Core'}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{c.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{c.email}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge variant={c.subscription?.planType === 'premium' ? 'amber' : 'gray'}>
+                      {c.subscription?.planType || 'core'}
                     </Badge>
-                    {c.subscription === 'core' && (
-                      <Button
-                        size="xs"
-                        loading={upgrading === c.id}
-                        onClick={() => upgrade(c.id)}
-                      >
-                        <Zap className="w-3 h-3" />
-                        Upgrade
-                      </Button>
-                    )}
+                    <span className={`text-[10px] font-medium ${c.subscription?.status === 'active' ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      {c.subscription?.status || 'inactive'}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Invoices */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-900">Invoice History</h2>
-              <Button variant="secondary" size="xs">
-                <Download className="w-3.5 h-3.5" />
-                Download all
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {invoices.map(inv => (
-                <div key={inv.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      ₹{inv.amount.toLocaleString('en-IN')}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{inv.description}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatDate(inv.date)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="green">{inv.status}</Badge>
-                    <Button variant="ghost" size="xs" onClick={() => toast.success('Invoice downloaded')}>
-                      <Download className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 p-4 bg-teal-50 rounded-xl border border-teal-100">
-              <div className="flex items-center gap-2 text-teal-700">
-                <TrendingUp className="w-4 h-4" />
-                <p className="text-sm font-semibold">Revenue is up 12% vs last month</p>
-              </div>
-              <p className="text-xs text-teal-600 mt-1">
-                ₹87,500 billed in May. Add 5 more premium clients to cross ₹1L/month.
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </Layout>
