@@ -4,7 +4,7 @@ import { Dumbbell, Building2, Phone, MapPin, User, Mail, Lock } from 'lucide-rea
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import useAuthStore from '../../store/authStore'
-import { mockUsers } from '../../api/mockData'
+import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
 const steps = ['Gym Details', 'Owner Details', 'Subscription']
@@ -43,13 +43,30 @@ export default function GymRegister() {
   const update = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   const handleSubmit = async () => {
+    if (!form.gymName.trim()) { toast.error('Gym name is required'); return }
+    if (!form.city.trim()) { toast.error('City is required'); return }
+    if (!form.ownerName.trim()) { toast.error('Owner name is required'); return }
+    if (!form.email.trim()) { toast.error('Email is required'); return }
+    if (!form.password || form.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1200))
-    const user = { ...mockUsers.admin, name: form.ownerName || mockUsers.admin.name, email: form.email || mockUsers.admin.email, gym: { id: 'gym_new', name: form.gymName || 'FitZone Pro', city: form.city || 'Mumbai' } }
-    setAuth(user, 'mock_admin_token')
-    toast.success('Gym registered successfully!')
-    navigate('/admin')
-    setLoading(false)
+    try {
+      const res = await api.post('/auth/register-gym', {
+        gymName: form.gymName.trim(),
+        city: form.city.trim(),
+        address: form.address.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        ownerName: form.ownerName.trim(),
+        email: form.email.trim(),
+        password: form.password,
+      })
+      setAuth(res.data.user, res.data.token)
+      toast.success('Gym registered! Welcome to Fit Check.')
+      navigate('/admin')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Registration failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

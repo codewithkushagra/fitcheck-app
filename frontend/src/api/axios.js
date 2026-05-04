@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000/api',
-  withCredentials: true,
+  withCredentials: false,
 })
 
 api.interceptors.request.use((config) => {
@@ -17,7 +17,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isAuthRoute = error.config?.url?.includes('/auth/')
+    // Only force-logout on a real 401 from a protected route (expired/invalid token)
+    // Never redirect on network errors (no response) or auth endpoints
+    if (error.response?.status === 401 && !isAuthRoute) {
       localStorage.removeItem('fitdeck-auth')
       window.location.href = '/login'
     }

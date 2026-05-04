@@ -1,8 +1,8 @@
 import { X } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
-export default function Modal({ open, onClose, title, children, size = 'md' }) {
-  if (!open) return null
+export default function Modal({ open, isOpen, onClose, title, children, size = 'md' }) {
+  if (!open && !isOpen) return null
 
   const sizeMap = {
     sm: 'max-w-sm',

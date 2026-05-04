@@ -101,7 +101,7 @@ export default function TrainerDashboard() {
                     <Avatar name={client.name} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{client.name}</p>
-                      <p className="text-xs text-gray-400">{client.clientProfile?.goal ? goalLabel(client.clientProfile.goal) : 'No goal set'}</p>
+                      <p className="text-xs text-gray-400">{client.clientProfile?.goal ? (goalLabel[client.clientProfile.goal] || client.clientProfile.goal) : 'No goal set'}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                   </div>

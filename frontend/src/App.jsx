@@ -1,15 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import useAuthStore from './store/authStore'
 import InstallPrompt from './components/ui/InstallPrompt'
 import SplashScreen from './components/ui/SplashScreen'
-import api from './api/axios'
 
 // Auth pages
 import Login from './pages/auth/Login'
 import GymRegister from './pages/auth/GymRegister'
 import UserSignup from './pages/auth/UserSignup'
+import ScanAttendance from './pages/ScanAttendance'
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -58,19 +58,6 @@ function RootRedirect() {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
-  const { isAuthenticated, token, logout, setAuth, user } = useAuthStore()
-
-  // Validate persisted token on every app start
-  useEffect(() => {
-    if (!isAuthenticated || !token) return
-    api.get('/auth/me').then(res => {
-      // Refresh user data from server in case profile changed
-      if (res.data?.user) setAuth(res.data.user, token)
-    }).catch(() => {
-      // Token expired or invalid — force logout
-      logout()
-    })
-  }, []) // eslint-disable-line
 
   return (
     <>
@@ -121,6 +108,9 @@ export default function App() {
           <Route path="/analysis" element={<RequireAuth roles={['end_user']}><WeeklyAnalysis /></RequireAuth>} />
           <Route path="/medical" element={<RequireAuth roles={['end_user']}><MedicalPlan /></RequireAuth>} />
           <Route path="/consult" element={<RequireAuth roles={['end_user']}><ConsultTrainer /></RequireAuth>} />
+
+          {/* QR Attendance scan — public but handles unauthenticated state internally */}
+          <Route path="/scan/:token" element={<ScanAttendance />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

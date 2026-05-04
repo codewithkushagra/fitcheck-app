@@ -53,7 +53,7 @@ export default function StepsAchievements() {
   const locked = achievements.filter(a => !a.unlocked)
 
   const chartData = weekLogs.map(l => ({
-    date: format(new Date(l.date + 'T00:00:00'), 'EEE'),
+    date: l.date,
     steps: l.stepCount,
   }))
 

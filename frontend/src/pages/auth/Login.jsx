@@ -1,17 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Dumbbell, Eye, EyeOff, Mail, Lock } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
-import { mockUsers } from '../../api/mockData'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
+import api from '../../api/axios'
 import toast from 'react-hot-toast'
-
-const demoAccounts = [
-  { role: 'gym_admin', label: 'Admin', emoji: '🏢', email: 'admin@fitdeck.app', color: 'bg-teal-50 border-teal-300 text-teal-700' },
-  { role: 'trainer', label: 'Trainer', emoji: '🏋️', email: 'trainer@fitdeck.app', color: 'bg-blue-50 border-blue-300 text-blue-700' },
-  { role: 'client', label: 'Client', emoji: '👤', email: 'ankit@example.com', color: 'bg-purple-50 border-purple-300 text-purple-700' },
-]
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -20,23 +14,31 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirectTo = searchParams.get('redirect')
 
-  const doLogin = async (targetEmail) => {
-    setLoading(true)
-    await new Promise(r => setTimeout(r, 600))
-    const userMap = {
-      'admin@fitdeck.app': mockUsers.admin,
-      'trainer@fitdeck.app': mockUsers.trainer,
-      'ankit@example.com': mockUsers.client,
+  const doLogin = async (e) => {
+    if (e?.preventDefault) e.preventDefault()
+    if (!email.trim() || !password.trim()) {
+      toast.error('Please enter email and password')
+      return
     }
-    const user = userMap[targetEmail || email]
-    if (!user) { toast.error('No account found.'); setLoading(false); return }
-    setAuth(user, 'mock_jwt_' + user.role)
-    toast.success(`Welcome, ${user.name.split(' ')[0]}!`)
-    if (user.role === 'gym_admin') navigate('/admin')
-    else if (user.role === 'trainer') navigate('/trainer')
-    else navigate('/dashboard')
-    setLoading(false)
+    setLoading(true)
+    try {
+      const res = await api.post('/auth/login', { email: email.trim(), password })
+      const { token, user } = res.data
+      setAuth(user, token)
+      toast.success(`Welcome back, ${user.name.split(' ')[0]}!`)
+      if (redirectTo) navigate(redirectTo, { replace: true })
+      else if (user.role === 'gym_admin') navigate('/admin')
+      else if (user.role === 'trainer') navigate('/trainer')
+      else navigate('/dashboard')
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Login failed'
+      toast.error(msg === 'Invalid credentials' ? 'Wrong email or password' : msg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -60,32 +62,9 @@ export default function Login() {
       {/* Main form card */}
       <div className="flex-1 bg-white rounded-t-3xl -mt-4 px-5 pt-6 pb-8">
         <h2 className="text-xl font-bold text-gray-900 mb-1">Welcome back</h2>
-        <p className="text-sm text-gray-500 mb-5">Log in to your account to continue.</p>
+        <p className="text-sm text-gray-500 mb-6">Log in to your account to continue.</p>
 
-        {/* Quick demo login */}
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2.5">Try a demo account</p>
-          <div className="grid grid-cols-3 gap-2">
-            {demoAccounts.map(acc => (
-              <button
-                key={acc.role}
-                onClick={() => doLogin(acc.email)}
-                className={`flex flex-col items-center gap-1 py-3 rounded-xl border-2 transition-all active:scale-95 ${acc.color}`}
-              >
-                <span className="text-xl">{acc.emoji}</span>
-                <span className="text-xs font-semibold">{acc.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative flex items-center gap-3 mb-5">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or sign in with email</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
-
-        <form onSubmit={e => { e.preventDefault(); doLogin() }} className="space-y-4">
+        <form onSubmit={doLogin} className="space-y-4">
           <Input
             label="Email"
             type="email"
@@ -93,6 +72,7 @@ export default function Login() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             leftIcon={Mail}
+            autoComplete="email"
           />
           <Input
             label="Password"
@@ -101,16 +81,16 @@ export default function Login() {
             value={password}
             onChange={e => setPassword(e.target.value)}
             leftIcon={Lock}
+            autoComplete="current-password"
             rightElement={
               <button type="button" onClick={() => setShowPwd(!showPwd)} className="text-gray-400">
                 {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             }
           />
-          <div className="flex justify-end">
-            <button type="button" className="text-sm text-teal-600 font-medium">Forgot password?</button>
-          </div>
-          <Button type="submit" className="w-full" loading={loading} size="lg">Sign in</Button>
+          <Button type="submit" className="w-full" loading={loading} size="lg">
+            Sign in
+          </Button>
         </form>
 
         <div className="mt-6 text-center space-y-2">

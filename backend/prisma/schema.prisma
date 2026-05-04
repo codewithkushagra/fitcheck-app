@@ -8,16 +8,18 @@ datasource db {
 }
 
 model Gym {
-  id               String    @id @default(cuid())
+  id               String          @id @default(cuid())
   name             String
   city             String
   address          String?
   phone            String?
-  ownerName        String    @map("owner_name")
-  subscriptionPlan String    @default("basic") @map("subscription_plan")
-  gymCode          String    @unique @map("gym_code")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  ownerName        String          @map("owner_name")
+  subscriptionPlan String          @default("basic") @map("subscription_plan")
+  gymCode          String          @unique @map("gym_code")
+  createdAt        DateTime        @default(now()) @map("created_at")
   users            User[]
+  trainerInvites   TrainerInvite[]
+  qrTokens         AttendanceQRToken[]
 
   @@map("gyms")
 }
@@ -36,6 +38,8 @@ model User {
   gym             Gym?             @relation(fields: [gymId], references: [id])
   trainer         User?            @relation("ClientTrainer", fields: [trainerId], references: [id])
   clients         User[]           @relation("ClientTrainer")
+  sentInvites     TrainerInvite[]  @relation("InviteSender")
+  createdQRTokens AttendanceQRToken[] @relation("QRCreator")
   trainerProfile  TrainerProfile?
   clientProfile   ClientProfile?
   foodLogs        FoodLog[]
@@ -226,4 +230,32 @@ model Achievement {
 
   @@unique([userId, achievementKey])
   @@map("achievements")
+}
+
+model AttendanceQRToken {
+  id         String   @id @default(cuid())
+  gymId      String   @map("gym_id")
+  createdBy  String   @map("created_by")
+  token      String   @unique
+  date       String   // yyyy-MM-dd
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  gym        Gym      @relation(fields: [gymId], references: [id])
+  creator    User     @relation("QRCreator", fields: [createdBy], references: [id])
+
+  @@map("attendance_qr_tokens")
+}
+
+model TrainerInvite {
+  id         String   @id @default(cuid())
+  gymId      String   @map("gym_id")
+  invitedBy  String   @map("invited_by")
+  email      String
+  status     String   @default("pending") // pending | accepted | declined
+  createdAt  DateTime @default(now()) @map("created_at")
+  gym        Gym      @relation(fields: [gymId], references: [id])
+  inviter    User     @relation("InviteSender", fields: [invitedBy], references: [id])
+
+  @@unique([gymId, email, status])
+  @@map("trainer_invites")
 }

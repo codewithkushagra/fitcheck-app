@@ -24,12 +24,54 @@ router.get('/stats', requireRole('gym_admin'), async (req, res) => {
   }
 })
 
-// Invite trainer
+// Invite trainer (creates a real in-app invite)
 router.post('/invite-trainer', requireRole('gym_admin'), async (req, res) => {
   try {
     const { email } = req.body
-    // In production: send email with invite link
-    res.json({ message: `Invite sent to ${email}` })
+    if (!email) return res.status(400).json({ error: 'Email is required' })
+    const gymId = req.user.gymId
+
+    // Already a trainer in this gym?
+    const existingTrainer = await prisma.user.findFirst({
+      where: { email, gymId, role: 'trainer' }
+    })
+    if (existingTrainer) return res.status(400).json({ error: 'This person is already a trainer in your gym' })
+
+    // Already a pending invite?
+    const existingInvite = await prisma.trainerInvite.findFirst({
+      where: { email, gymId, status: 'pending' }
+    })
+    if (existingInvite) return res.status(400).json({ error: 'A pending invite already exists for this email' })
+
+    const invite = await prisma.trainerInvite.create({
+      data: { gymId, invitedBy: req.user.id, email }
+    })
+    res.status(201).json({ message: `Invite sent to ${email}`, invite })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Get all trainer invites for this gym (admin view)
+router.get('/trainer-invites', requireRole('gym_admin'), async (req, res) => {
+  try {
+    const invites = await prisma.trainerInvite.findMany({
+      where: { gymId: req.user.gymId },
+      orderBy: { createdAt: 'desc' }
+    })
+    res.json(invites)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Delete / revoke a pending invite
+router.delete('/trainer-invites/:id', requireRole('gym_admin'), async (req, res) => {
+  try {
+    await prisma.trainerInvite.deleteMany({
+      where: { id: req.params.id, gymId: req.user.gymId, status: 'pending' }
+    })
+    res.json({ message: 'Invite revoked' })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

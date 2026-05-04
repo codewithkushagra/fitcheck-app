@@ -5,7 +5,7 @@ import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import useAuthStore from '../../store/authStore'
-import { mockUsers } from '../../api/mockData'
+import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
 const steps = ['Account', 'Body Profile', 'Goal']
@@ -41,19 +41,35 @@ export default function UserSignup() {
   const update = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   const handleFinish = async () => {
+    if (!form.name.trim()) { toast.error('Name is required'); return }
+    if (!form.email.trim()) { toast.error('Email is required'); return }
+    if (!form.password || form.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
+    if (!form.height || !form.weight || !form.age) { toast.error('Please fill in your body profile'); return }
+    if (!goal) { toast.error('Please select a goal'); return }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1000))
-    const user = {
-      ...mockUsers.client,
-      name: form.name || mockUsers.client.name,
-      email: form.email || mockUsers.client.email,
-      goal,
-      macroTargets: macrosByGoal[goal] || macrosByGoal.maintenance,
+    try {
+      const res = await api.post('/auth/register-client', {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        gymCode: form.gymCode.trim() || undefined,
+        age: parseInt(form.age),
+        gender: form.gender,
+        heightCm: parseFloat(form.height),
+        weightKg: parseFloat(form.weight),
+        goal,
+        medicalConditions: form.medicalConditions
+          ? form.medicalConditions.split(',').map(s => s.trim()).filter(Boolean)
+          : [],
+      })
+      setAuth(res.data.user, res.data.token)
+      toast.success('Account created! Welcome to Fit Check.')
+      navigate('/dashboard')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Registration failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setAuth(user, 'mock_client_token')
-    toast.success('Account created! Welcome to Fit Check.')
-    navigate('/dashboard')
-    setLoading(false)
   }
 
   const macros = macrosByGoal[goal]

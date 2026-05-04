@@ -31,4 +31,24 @@ router.put('/profile', async (req, res) => {
   }
 })
 
+// Get the trainer assigned to this client
+router.get('/my-trainer', async (req, res) => {
+  try {
+    if (!req.user.trainerId) return res.json(null)
+    const trainer = await prisma.user.findUnique({
+      where: { id: req.user.trainerId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        profilePhotoUrl: true,
+        trainerProfile: { select: { specialisation: true, bio: true } }
+      }
+    })
+    res.json(trainer)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router
