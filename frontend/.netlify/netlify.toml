@@ -15,6 +15,7 @@ command = "npm run build"
 
 [build.environment]
 NODE_VERSION = "20"
+VITE_API_URL = "https://fitcheck-backend-0c7q.onrender.com/api"
 
 [build.processing]
 
